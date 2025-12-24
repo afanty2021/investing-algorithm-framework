@@ -155,3 +155,7 @@ bumpversion.egg-info/
 venv
 **/app_logs.log
 /resources/
+
+# AI workflow directories
+.spec-workflow/
+.swarm/
