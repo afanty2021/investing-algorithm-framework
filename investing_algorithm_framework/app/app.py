@@ -3,7 +3,8 @@ import logging
 import os
 import threading
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Any, Dict, Tuple
+from pathlib import Path
+from typing import List, Optional, Any, Dict, Tuple, Callable, Union
 
 from flask import Flask
 
@@ -17,11 +18,11 @@ from investing_algorithm_framework.domain import DATABASE_NAME, TimeUnit, \
     BACKTESTING_START_DATE, BACKTESTING_END_DATE, APP_MODE, MarketCredential, \
     AppMode, BacktestDateRange, DATABASE_DIRECTORY_NAME, DataSource, \
     BACKTESTING_INITIAL_AMOUNT, SNAPSHOT_INTERVAL, Backtest, DataError, \
-    PortfolioConfiguration, SnapshotInterval, DataType, combine_backtests, \
+    PortfolioConfiguration, SnapshotInterval, DataType, \
     PortfolioProvider, OrderExecutor, ImproperlyConfigured, TimeFrame, \
     DataProvider, INDEX_DATETIME, tqdm, BacktestPermutationTest, \
-    LAST_SNAPSHOT_DATETIME, BACKTESTING_FLAG, \
-    generate_backtest_summary_metrics, DATA_DIRECTORY
+    LAST_SNAPSHOT_DATETIME, BACKTESTING_FLAG, DATA_DIRECTORY, \
+    generate_backtest_summary_metrics
 from investing_algorithm_framework.infrastructure import setup_sqlalchemy, \
     create_all_tables, CCXTOrderExecutor, CCXTPortfolioProvider, \
     BacktestOrderExecutor, CCXTOHLCVDataProvider, clear_db, \
@@ -32,7 +33,6 @@ from investing_algorithm_framework.services import OrderBacktestService, \
 from .app_hook import AppHook
 from .eventloop import EventLoopService
 from .analysis import create_ohlcv_permutation
-
 
 logger = logging.getLogger("investing_algorithm_framework")
 COLOR_RESET = '\033[0m'
@@ -926,6 +926,14 @@ class App:
         market: Optional[str] = None,
         trading_symbol: Optional[str] = None,
         continue_on_error: bool = False,
+        window_filter_function: Optional[
+            Callable[[List[Backtest], BacktestDateRange], List[Backtest]]
+        ] = None,
+        final_filter_function: Optional[
+            Callable[[List[Backtest]], List[Backtest]]
+        ] = None,
+        backtest_storage_directory: Optional[Union[str, Path]] = None,
+        use_checkpoints: bool = False
     ) -> List[Backtest]:
         """
         Run vectorized backtests for a set of strategies. The provided
@@ -977,14 +985,62 @@ class App:
                 backtests if an error occurs in one of the backtests. If set
                 to True, the backtest will return an empty Backtest instance
                 in case of an error. If set to False, the error will be raised.
+            window_filter_function (
+                Optional[Callable[[List[Backtest], BacktestDateRange],
+                List[Backtest]]]
+            ):
+                A function that takes a list of Backtest objects and
+                the current BacktestDateRange, and returns a filtered
+                list of Backtest objects. This is applied after each
+                backtest date range when backtest_date_ranges
+                is provided. Only the strategies from the filtered
+                backtests will continue to the next date range. This allows
+                for progressive filtering
+                of strategies based on their performance in previous periods.
+
+                The function signature should be:
+                    def filter_function(
+                        backtests: List[Backtest],
+                        backtest_date_range: BacktestDateRange
+                    ) -> List[Backtest]
+            final_filter_function (
+                Optional[Callable[[List[Backtest]], List[Backtest]]]
+            ):
+                A function that takes a list of Backtest objects and
+                returns a filtered list of Backtest objects. This is applied
+                after all backtest date ranges have been processed when
+                backtest_date_ranges is provided. Only the strategies from
+                the filtered backtests will be returned as the final result.
+                This allows for final filtering of strategies based on
+                their overall performance across all periods. The function
+                signature should be:
+                    def filter_function(
+                        backtests: List[Backtest]
+                    ) -> List[Backtest]
+            backtest_storage_directory (Optional[Union[str, Path]]): If
+                provided, the backtests will be saved to the
+                specified directory after each backtest is completed.
+                This is useful for long-running backtests that might
+                take a while to complete.
+            use_checkpoints (bool): Whether to use checkpoints when running
+                the backtests. If set to True, the backtest engine will
+                first check if there already exists a backtest for the given
+                backtest date range and strategy combination. If such a
+                backtest exists, it will be loaded
+                instead of running a new backtest. This is useful for
+                long-running backtests that might take a while to complete.
 
         Returns:
             List[Backtest]: List of Backtest instances for each strategy
                 that was backtested.
         """
-        backtests = []
-        backtests_ordered_by_strategy = {}
-        data_sources = []
+        backtest_service = self.container.backtest_service()
+
+        if use_checkpoints and backtest_storage_directory is None:
+            raise OperationalException(
+                "backtest_storage_directory must be provided when "
+                "use_checkpoints is set to True"
+            )
 
         if backtest_date_range is None and backtest_date_ranges is None:
             raise OperationalException(
@@ -992,90 +1048,56 @@ class App:
                 "provided"
             )
 
-        for strategy in strategies:
-            data_sources.extend(strategy.data_sources)
+        if not skip_data_sources_initialization:
+            print("adding default data providers")
+            data_provider_service = self.container.data_provider_service()
+            data_provider_service.reset()
 
-        if risk_free_rate is None:
-            logger.info("No risk free rate provided, retrieving it...")
-            risk_free_rate = get_risk_free_rate_us()
-
-            if risk_free_rate is None:
-                raise OperationalException(
-                    "Could not retrieve risk free rate for backtest metrics."
-                    "Please provide a risk free as an argument when running "
-                    "your backtest or make sure you have an internet "
-                    "connection"
+            for data_provider_tuple in self._data_providers:
+                data_provider_service.add_data_provider(
+                    data_provider_tuple[0], priority=data_provider_tuple[1]
                 )
 
-        if backtest_date_range is not None:
-            if not skip_data_sources_initialization:
-                self.initialize_data_sources_backtest(
-                    data_sources,
-                    backtest_date_range,
-                    show_progress=show_progress
-                )
+            # Add the default data providers
+            data_provider_service.add_data_provider(
+                CCXTOHLCVDataProvider()
+            )
 
-            for strategy in tqdm(
-                strategies, colour="green", desc="Running backtests"
-            ):
-                backtest = self.run_vector_backtest(
-                    backtest_date_range=backtest_date_range,
-                    initial_amount=initial_amount,
-                    strategy=strategy,
-                    snapshot_interval=snapshot_interval,
-                    risk_free_rate=risk_free_rate,
-                    skip_data_sources_initialization=True,
-                    market=market,
-                    trading_symbol=trading_symbol,
-                    continue_on_error=continue_on_error
-                )
-                backtests.append(backtest)
-        else:
-            for backtest_date_range in tqdm(
-                backtest_date_ranges,
-                colour="green",
-                desc="Running backtests for all date ranges"
-            ):
-                if not skip_data_sources_initialization:
-                    self.initialize_data_sources_backtest(
-                        data_sources,
-                        backtest_date_range,
-                        show_progress=show_progress
-                    )
-                start_date = backtest_date_range.start_date.strftime(
-                    '%Y-%m-%d'
-                )
-                end_date = backtest_date_range.end_date.strftime('%Y-%m-%d')
-
-                for strategy in tqdm(
-                    strategies,
-                        colour="green",
-                        desc=f"Running backtests for "
-                             f"{start_date} to {end_date}"
-                ):
-
-                    if strategy not in backtests_ordered_by_strategy:
-                        backtests_ordered_by_strategy[strategy] = []
-
-                    backtests_ordered_by_strategy[strategy].append(
-                        self.run_vector_backtest(
-                            backtest_date_range=backtest_date_range,
-                            initial_amount=initial_amount,
-                            strategy=strategy,
-                            snapshot_interval=snapshot_interval,
-                            risk_free_rate=risk_free_rate,
-                            skip_data_sources_initialization=True,
-                            market=market,
-                            trading_symbol=trading_symbol,
-                        )
-                    )
-
-            for strategy in backtests_ordered_by_strategy:
-                backtests.append(
-                    combine_backtests(backtests_ordered_by_strategy[strategy])
-                )
-
-        return backtests
+        if use_checkpoints:
+            sdsi = skip_data_sources_initialization
+            return backtest_service.run_vector_backtests_with_checkpoints(
+                strategies=strategies,
+                backtest_date_range=backtest_date_range,
+                backtest_date_ranges=backtest_date_ranges,
+                snapshot_interval=snapshot_interval,
+                risk_free_rate=risk_free_rate,
+                initial_amount=initial_amount,
+                skip_data_sources_initialization=sdsi,
+                show_progress=show_progress,
+                market=market,
+                trading_symbol=trading_symbol,
+                continue_on_error=continue_on_error,
+                backtest_storage_directory=backtest_storage_directory,
+                window_filter_function=window_filter_function,
+                final_filter_function=final_filter_function,
+            )
+        sdsi = skip_data_sources_initialization
+        return backtest_service.run_vector_backtests(
+            strategies=strategies,
+            backtest_date_range=backtest_date_range,
+            backtest_date_ranges=backtest_date_ranges,
+            snapshot_interval=snapshot_interval,
+            risk_free_rate=risk_free_rate,
+            initial_amount=initial_amount,
+            skip_data_sources_initialization=sdsi,
+            show_progress=show_progress,
+            market=market,
+            trading_symbol=trading_symbol,
+            continue_on_error=continue_on_error,
+            window_filter_function=window_filter_function,
+            final_filter_function=final_filter_function,
+            backtest_storage_directory=backtest_storage_directory,
+        )
 
     def run_vector_backtest(
         self,
@@ -1085,16 +1107,18 @@ class App:
         metadata: Optional[Dict[str, str]] = None,
         risk_free_rate: Optional[float] = None,
         skip_data_sources_initialization: bool = False,
-        show_data_initialization_progress: bool = True,
         initial_amount: float = None,
         market: str = None,
         trading_symbol: str = None,
         continue_on_error: bool = False,
+        backtest_storage_directory: Optional[Union[str, Path]] = None,
+        use_checkpoints: bool = False,
+        show_progress=False,
     ) -> Backtest:
         """
         Run vectorized backtests for a strategy. The provided
-        strategy needs to have its 'buy_signal_vectorized' and
-        'sell_signal_vectorized' methods implemented to support vectorized
+        strategy needs to have its 'generate_buy_signals' and
+        'generate_sell_signals' methods implemented to support vectorized
         backtesting.
 
         Args:
@@ -1125,8 +1149,6 @@ class App:
                 initialization step. This will speed up the backtesting
                 process, but make sure that the data sources are already
                 initialized before calling this method.
-            show_data_initialization_progress (bool): Whether to show the
-                progress bar when initializing data sources.
             market (str): The market to use for the backtest. This is used
                 to create a portfolio configuration if no portfolio
                 configuration is provided in the strategy.
@@ -1142,6 +1164,20 @@ class App:
                 backtests if an error occurs in one of the backtests. If set
                 to True, the backtest will return an empty Backtest instance
                 in case of an error. If set to False, the error will be raised.
+            backtest_storage_directory (Union[str, Path]): The directory
+                to save the backtest to after it is completed. This is
+                useful for long-running backtests that might take a
+                while to complete.
+            use_checkpoints (bool): Whether to use checkpoints when running
+                the backtest. If set to True, the backtest engine will
+                first check if there already exists a backtest for the given
+                backtest date range and strategy combination. If such a
+                backtest exists, it will be loaded
+                instead of running a new backtest. This is useful for
+                long-running backtests that might take a while to complete.
+            show_progress (bool): Whether to show progress bars during
+                data source initialization. This is useful for long-running
+                initialization processes.
 
         Returns:
             Backtest: Instance of Backtest
@@ -1153,11 +1189,17 @@ class App:
             initial_amount=initial_amount
         )
 
+        if use_checkpoints and backtest_storage_directory is None:
+            raise OperationalException(
+                "When using checkpoints, a backtest_storage_directory must "
+                "be provided"
+            )
+
         if not skip_data_sources_initialization:
             self.initialize_data_sources_backtest(
                 strategy.data_sources,
                 backtest_date_range,
-                show_progress=show_data_initialization_progress
+                show_progress=show_progress
             )
 
         if risk_free_rate is None:
@@ -1167,42 +1209,68 @@ class App:
             if risk_free_rate is None:
                 raise OperationalException(
                     "Could not retrieve risk free rate for backtest metrics."
-                    "Please provide a risk free as an argument when running "
-                    "your backtest or make sure you have an internet "
-                    "connection"
+                    "Please provide a risk free rate as an argument "
+                    "when running your backtest or make sure "
+                    "you have an internet connection"
                 )
 
         backtest_service = self.container.backtest_service()
         backtest_service.validate_strategy_for_vector_backtest(strategy)
 
-        try:
-            run = backtest_service.create_vector_backtest(
-                strategy=strategy,
-                backtest_date_range=backtest_date_range,
-                risk_free_rate=risk_free_rate,
-                market=market,
-                trading_symbol=trading_symbol,
-                initial_amount=initial_amount
-            )
-            backtest = Backtest(
-                backtest_runs=[run],
-                risk_free_rate=risk_free_rate,
-                backtest_summary=generate_backtest_summary_metrics(
-                    [run.backtest_metrics]
+        # Check if the backtest already exists when using checkpoints
+        if use_checkpoints and backtest_service.backtest_exists(
+            strategy=strategy,
+            backtest_date_range=backtest_date_range,
+            storage_directory=backtest_storage_directory,
+        ):
+            backtest = backtest_service\
+                .load_backtest_by_strategy_and_backtest_date_range(
+                    strategy=strategy,
+                    backtest_date_range=backtest_date_range,
+                    storage_directory=backtest_storage_directory,
                 )
-            )
-        except Exception as e:
-            logger.error(
-                f"Error occurred during vector backtest for strategy "
-                f"{strategy.strategy_id}: {str(e)}"
-            )
-            if continue_on_error:
-                backtest = Backtest(
-                    backtest_runs=[],
+        else:
+            try:
+
+                if show_progress:
+                    start_date = backtest_date_range \
+                        .start_date.strftime('%Y-%m-%d')
+                    end_date = backtest_date_range.end_date.strftime(
+                        '%Y-%m-%d')
+                    print(
+                        f"Running backtests for {start_date} to {end_date}"
+                    )
+
+                run = backtest_service.create_vector_backtest(
+                    strategy=strategy,
+                    backtest_date_range=backtest_date_range,
                     risk_free_rate=risk_free_rate,
+                    market=market,
+                    trading_symbol=trading_symbol,
+                    initial_amount=initial_amount
                 )
-            else:
-                raise e
+                backtest = Backtest(
+                    algorithm_id=strategy.algorithm_id,
+                    backtest_runs=[run],
+                    risk_free_rate=risk_free_rate,
+                    backtest_summary=generate_backtest_summary_metrics(
+                        [run.backtest_metrics]
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error occurred during vector backtest for strategy "
+                    f"{strategy.strategy_id}: {str(e)}"
+                )
+
+                if continue_on_error:
+                    backtest = Backtest(
+                        algorithm_id=strategy.algorithm_id,
+                        backtest_runs=[],
+                        risk_free_rate=risk_free_rate,
+                    )
+                else:
+                    raise e
 
         # Add the metadata to the backtest
         if metadata is None:
@@ -1501,7 +1569,8 @@ class App:
             snapshot_interval=SnapshotInterval.DAILY,
             risk_free_rate=risk_free_rate,
             market=market,
-            trading_symbol=trading_symbol
+            trading_symbol=trading_symbol,
+            use_checkpoints=False
         )
         backtest_metrics = backtest.get_backtest_metrics(backtest_date_range)
 
@@ -1583,7 +1652,8 @@ class App:
                 risk_free_rate=risk_free_rate,
                 skip_data_sources_initialization=True,
                 market=market,
-                trading_symbol=trading_symbol
+                trading_symbol=trading_symbol,
+                use_checkpoints=False
             )
 
             # Add the results of the permuted backtest to the main backtest
