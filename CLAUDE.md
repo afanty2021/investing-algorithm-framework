@@ -1,7 +1,7 @@
 # Investing Algorithm Framework - AI 上下文文档
 
 > 创建时间：2025-12-24 10:25:42
-> 项目版本：v7.21.0
+> 项目版本：v7.23.0
 > 项目主页：https://coding-kitties.github.io/investing-algorithm-framework/
 
 ## 项目愿景
@@ -315,6 +315,17 @@ report.show(backtest_date_range=backtest_range, browser=True)
 ---
 
 ## 变更记录 (Changelog)
+
+### 2025-12-31 13:45:00 - 同步上游 v7.23.0
+- **合并上游更新**: 从 `coding-kitties/investing-algorithm-framework` 同步最新代码
+- **版本升级**: v7.21.0 → v7.23.0
+- **新增功能**:
+  - `final_filter_function` 支持 - 在回测结束后应用最终过滤函数
+  - 修复 `window_filter_function` 参数引用问题
+  - 修复 load backtests 功能 (#345)
+- **架构重构**: `services/backtesting/` → `infrastructure/services/backtesting/`
+- **新增测试**: 多个向量化回测场景测试用例
+- **提交哈希**: `dff4dea2` (合并提交)
 
 ### 2025-12-24 10:25:42 - 初始化完成
 - 创建根级 AI 上下文文档
