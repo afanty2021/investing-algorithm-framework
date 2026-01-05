@@ -1,7 +1,8 @@
 # Investing Algorithm Framework - AI 上下文文档
 
 > 创建时间：2025-12-24 10:25:42
-> 项目版本：v7.23.0
+> 项目版本：v7.24.0
+> 最后更新：2026-01-05 16:30:00
 > 项目主页：https://coding-kitties.github.io/investing-algorithm-framework/
 
 ## 项目愿景
@@ -59,7 +60,7 @@ graph TD
     A["(根) Investing Algorithm Framework"] --> B["investing_algorithm_framework"];
     A --> C["tests"];
     A --> D["examples"];
-    A --> E["docs"];
+    A --> E["docusaurus/docs"];
 
     B --> F["app"];
     B --> G["cli"];
@@ -75,42 +76,59 @@ graph TD
 
     H --> H1["backtesting"];
     H --> H2["models"];
-    H --> H3["services"];
 
     I --> I1["data_providers"];
     I --> I2["order_executors"];
     I --> I3["portfolio_providers"];
     I --> I4["repositories"];
+    I --> I5["services"];
 
     J --> J1["backtesting"];
     J --> J2["metrics"];
     J --> J3["order_service"];
     J --> J4["portfolios"];
 
-    D --> D1["tutorial"];
-    D --> D2["example_strategies"];
-    D --> D3["trading_bots"];
-
-    click F "./investing_algorithm_framework/app/CLAUDE.md" "查看 app 模块文档"
+    click F1 "./investing_algorithm_framework/app/algorithm/CLAUDE.md" "查看 algorithm 子模块文档"
     click G "./investing_algorithm_framework/cli/CLAUDE.md" "查看 cli 模块文档"
-    click H "./investing_algorithm_framework/domain/CLAUDE.md" "查看 domain 模块文档"
-    click I "./investing_algorithm_framework/infrastructure/CLAUDE.md" "查看 infrastructure 模块文档"
-    click J "./investing_algorithm_framework/services/CLAUDE.md" "查看 services 模块文档"
+    click H1 "./investing_algorithm_framework/domain/backtesting/CLAUDE.md" "查看 backtesting 子模块文档"
+    click H2 "./investing_algorithm_framework/domain/models/CLAUDE.md" "查看 models 子模块文档"
+    click I1 "./investing_algorithm_framework/infrastructure/data_providers/CLAUDE.md" "查看 data_providers 子模块文档"
+    click I2 "./investing_algorithm_framework/infrastructure/order_executors/CLAUDE.md" "查看 order_executors 子模块文档"
+    click I5 "./investing_algorithm_framework/infrastructure/services/backtesting/CLAUDE.md" "查看 backtesting 服务文档"
+    click J1 "./investing_algorithm_framework/services/backtesting/CLAUDE.md" "查看 backtesting 服务模块文档"
+    click J2 "./investing_algorithm_framework/services/metrics/CLAUDE.md" "查看 metrics 子模块文档"
+    click J4 "./investing_algorithm_framework/services/portfolios/CLAUDE.md" "查看 portfolios 子模块文档"
 ```
 
 ---
 
 ## 模块索引
 
-| 模块路径 | 职责描述 | 主要语言 | 测试覆盖 |
-|---------|---------|---------|---------|
-| `investing_algorithm_framework/app` | 应用核心，包含算法、策略、回测和报告 | Python | 是 |
-| `investing_algorithm_framework/cli` | 命令行工具，支持项目初始化和云部署 | Python | 是 |
-| `investing_algorithm_framework/domain` | 领域模型，定义核心业务实体 | Python | 是 |
-| `investing_algorithm_framework/infrastructure` | 基础设施，数据库、数据源、订单执行 | Python | 是 |
-| `investing_algorithm_framework/services` | 业务服务，组合管理、指标计算 | Python | 是 |
-| `examples` | 示例代码和教程 | Python | 部分 |
-| `tests` | 单元测试和集成测试 | Python | - |
+### 顶层模块
+
+| 模块路径 | 职责描述 | 主要语言 | 测试覆盖 | 子模块文档 |
+|---------|---------|---------|---------|-----------|
+| `investing_algorithm_framework/app` | 应用核心，包含算法、策略、回测和报告 | Python | 是 | ✅ algorithm |
+| `investing_algorithm_framework/cli` | 命令行工具，支持项目初始化和云部署 | Python | 是 | - |
+| `investing_algorithm_framework/domain` | 领域模型，定义核心业务实体 | Python | 是 | ✅ backtesting, models |
+| `investing_algorithm_framework/infrastructure` | 基础设施，数据库、数据源、订单执行 | Python | 是 | ✅ data_providers, order_executors, services/backtesting |
+| `investing_algorithm_framework/services` | 业务服务，组合管理、指标计算 | Python | 是 | ✅ backtesting, metrics, portfolios |
+| `examples` | 示例代码和教程 | Python | 部分 | - |
+| `tests` | 单元测试和集成测试 | Python | - | - |
+
+### 子模块文档清单
+
+| 子模块路径 | 文档位置 | 主要内容 |
+|-----------|---------|---------|
+| `app/algorithm` | `investing_algorithm_framework/app/algorithm/CLAUDE.md` | 算法执行引擎和策略运行逻辑 |
+| `domain/backtesting` | `investing_algorithm_framework/domain/backtesting/CLAUDE.md` | 回测领域模型和核心实体 |
+| `domain/models` | `investing_algorithm_framework/domain/models/CLAUDE.md` | 交易、订单、持仓等核心模型 |
+| `infrastructure/data_providers` | `investing_algorithm_framework/infrastructure/data_providers/CLAUDE.md` | 数据提供者抽象和 CCXT 集成 |
+| `infrastructure/order_executors` | `investing_algorithm_framework/infrastructure/order_executors/CLAUDE.md` | 订单执行器抽象和实现 |
+| `infrastructure/services/backtesting` | `investing_algorithm_framework/infrastructure/services/backtesting/CLAUDE.md` | 回测服务基础设施层 |
+| `services/backtesting` | `investing_algorithm_framework/services/backtesting/CLAUDE.md` | 回测服务业务逻辑层 |
+| `services/metrics` | `investing_algorithm_framework/services/metrics/CLAUDE.md` | 性能指标计算服务 |
+| `services/portfolios` | `investing_algorithm_framework/services/portfolios/CLAUDE.md` | 投资组合管理服务 |
 
 ---
 
@@ -169,6 +187,14 @@ investing-algorithm-framework deploy-azure-function \
     --resource_group my-rg \
     --deployment_name my-deployment \
     --region eastus
+```
+
+### 回测检查点验证
+
+```bash
+# 验证回测检查点数据完整性
+investing-algorithm-framework validate-checkpoints \
+    --backtest_test_directory /path/to/backtest
 ```
 
 ---
@@ -315,6 +341,27 @@ report.show(backtest_date_range=backtest_range, browser=True)
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-01-05 16:30:00 - 同步上游 v7.24.0
+- **版本升级**: v7.23.0 → v7.24.0
+- **重大新功能**: 并行化支持
+  - 支持多个回测任务并行执行
+  - 提升大规模回测场景的执行效率
+- **CLI 增强**:
+  - 新增 `validate-checkpoints` 命令用于验证回测检查点数据完整性
+  - 支持检查点数据的快速验证和调试
+- **文档体系完善**:
+  - 新增 8 个子模块 AI 上下文文档
+  - 完善模块索引和导航结构
+  - 子模块文档覆盖率提升至 80%+
+- **测试增强**:
+  - 新增并行化支持测试用例
+  - 新增检查点验证测试
+  - 新增向量化回测场景测试
+- **架构优化**:
+  - 完善服务层分离（services/ → infrastructure/services/）
+  - 优化数据提供者服务接口
+- **提交哈希**: `60225283` (合并提交)
 
 ### 2025-12-31 13:45:00 - 同步上游 v7.23.0
 - **合并上游更新**: 从 `coding-kitties/investing-algorithm-framework` 同步最新代码
