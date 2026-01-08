@@ -1,8 +1,8 @@
 # Investing Algorithm Framework - AI 上下文文档
 
 > 创建时间：2025-12-24 10:25:42
-> 项目版本：v7.24.0
-> 最后更新：2026-01-05 16:30:00
+> 项目版本：v7.24.1
+> 最后更新：2026-01-08 11:21:35
 > 项目主页：https://coding-kitties.github.io/investing-algorithm-framework/
 
 ## 项目愿景
@@ -81,20 +81,28 @@ graph TD
     I --> I2["order_executors"];
     I --> I3["portfolio_providers"];
     I --> I4["repositories"];
-    I --> I5["services"];
+    I --> I5["database"];
+    I --> I6["services"];
 
     J --> J1["backtesting"];
     J --> J2["metrics"];
     J --> J3["order_service"];
     J --> J4["portfolios"];
+    J --> J5["positions"];
+    J --> J6["trade_service"];
+    J --> J7["data_providers"];
 
     click F1 "./investing_algorithm_framework/app/algorithm/CLAUDE.md" "查看 algorithm 子模块文档"
+    click F "./investing_algorithm_framework/app/CLAUDE.md" "查看 app 模块文档"
     click G "./investing_algorithm_framework/cli/CLAUDE.md" "查看 cli 模块文档"
+    click H "./investing_algorithm_framework/domain/CLAUDE.md" "查看 domain 模块文档"
     click H1 "./investing_algorithm_framework/domain/backtesting/CLAUDE.md" "查看 backtesting 子模块文档"
     click H2 "./investing_algorithm_framework/domain/models/CLAUDE.md" "查看 models 子模块文档"
+    click I "./investing_algorithm_framework/infrastructure/CLAUDE.md" "查看 infrastructure 模块文档"
     click I1 "./investing_algorithm_framework/infrastructure/data_providers/CLAUDE.md" "查看 data_providers 子模块文档"
     click I2 "./investing_algorithm_framework/infrastructure/order_executors/CLAUDE.md" "查看 order_executors 子模块文档"
-    click I5 "./investing_algorithm_framework/infrastructure/services/backtesting/CLAUDE.md" "查看 backtesting 服务文档"
+    click I6 "./investing_algorithm_framework/infrastructure/services/backtesting/CLAUDE.md" "查看 backtesting 服务文档"
+    click J "./investing_algorithm_framework/services/CLAUDE.md" "查看 services 模块文档"
     click J1 "./investing_algorithm_framework/services/backtesting/CLAUDE.md" "查看 backtesting 服务模块文档"
     click J2 "./investing_algorithm_framework/services/metrics/CLAUDE.md" "查看 metrics 子模块文档"
     click J4 "./investing_algorithm_framework/services/portfolios/CLAUDE.md" "查看 portfolios 子模块文档"
@@ -120,12 +128,17 @@ graph TD
 
 | 子模块路径 | 文档位置 | 主要内容 |
 |-----------|---------|---------|
+| `app` | `investing_algorithm_framework/app/CLAUDE.md` | 应用层核心模块 |
 | `app/algorithm` | `investing_algorithm_framework/app/algorithm/CLAUDE.md` | 算法执行引擎和策略运行逻辑 |
+| `cli` | `investing_algorithm_framework/cli/CLAUDE.md` | 命令行界面工具 |
+| `domain` | `investing_algorithm_framework/domain/CLAUDE.md` | 领域模型层 |
 | `domain/backtesting` | `investing_algorithm_framework/domain/backtesting/CLAUDE.md` | 回测领域模型和核心实体 |
 | `domain/models` | `investing_algorithm_framework/domain/models/CLAUDE.md` | 交易、订单、持仓等核心模型 |
+| `infrastructure` | `investing_algorithm_framework/infrastructure/CLAUDE.md` | 基础设施层 |
 | `infrastructure/data_providers` | `investing_algorithm_framework/infrastructure/data_providers/CLAUDE.md` | 数据提供者抽象和 CCXT 集成 |
 | `infrastructure/order_executors` | `investing_algorithm_framework/infrastructure/order_executors/CLAUDE.md` | 订单执行器抽象和实现 |
 | `infrastructure/services/backtesting` | `investing_algorithm_framework/infrastructure/services/backtesting/CLAUDE.md` | 回测服务基础设施层 |
+| `services` | `investing_algorithm_framework/services/CLAUDE.md` | 业务服务层 |
 | `services/backtesting` | `investing_algorithm_framework/services/backtesting/CLAUDE.md` | 回测服务业务逻辑层 |
 | `services/metrics` | `investing_algorithm_framework/services/metrics/CLAUDE.md` | 性能指标计算服务 |
 | `services/portfolios` | `investing_algorithm_framework/services/portfolios/CLAUDE.md` | 投资组合管理服务 |
@@ -341,6 +354,28 @@ report.show(backtest_date_range=backtest_range, browser=True)
 ---
 
 ## 变更记录 (Changelog)
+
+### 2026-01-08 11:21:35 - AI 上下文文档更新
+- **文档版本**: v7.24.0 → v7.24.1
+- **文档系统完善**:
+  - 更新根级文档版本号至 v7.24.1
+  - 验证所有 13 个模块和子模块文档完整性
+  - 完善模块结构图，新增更多导航链接
+- **子模块文档状态**:
+  - ✅ app/CLAUDE.md - 应用层核心模块文档
+  - ✅ app/algorithm/CLAUDE.md - 算法执行引擎文档
+  - ✅ cli/CLAUDE.md - 命令行界面文档
+  - ✅ domain/CLAUDE.md - 领域模型层文档
+  - ✅ domain/backtesting/CLAUDE.md - 回测领域模型文档
+  - ✅ domain/models/CLAUDE.md - 核心模型文档
+  - ✅ infrastructure/CLAUDE.md - 基础设施层文档
+  - ✅ infrastructure/data_providers/CLAUDE.md - 数据提供者文档
+  - ✅ infrastructure/order_executors/CLAUDE.md - 订单执行器文档
+  - ✅ infrastructure/services/backtesting/CLAUDE.md - 回测服务基础设施文档
+  - ✅ services/CLAUDE.md - 业务服务层文档
+  - ✅ services/metrics/CLAUDE.md - 指标计算服务文档
+  - ✅ services/portfolios/CLAUDE.md - 投资组合管理服务文档
+- **覆盖率**: 模块级文档 100% (5/5)，子模块文档覆盖率 100% (8/8)
 
 ### 2026-01-05 16:30:00 - 同步上游 v7.24.0
 - **版本升级**: v7.23.0 → v7.24.0
